@@ -196,7 +196,56 @@ a{color:inherit}
 .about-card .btn.primary:hover{background:var(--ink);color:var(--wax);border-color:var(--ink)}
 @media (max-width:520px){.about-card{padding:40px 22px 26px}.facts{grid-template-columns:1fr}}
 
+/* ---------- photo viewer ---------- */
+.note .zoomhint{position:absolute;right:16px;top:16px;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+  background:rgba(20,16,13,.62);color:var(--wax);opacity:0;transition:opacity .3s;pointer-events:none}
+.note .zoomhint svg{width:16px;height:16px}
+.note.top .zoomhint{opacity:1}
+.note.top{cursor:zoom-in}
+.note.top.dragging{cursor:grabbing}
+#zoom{position:fixed;inset:0;z-index:40;visibility:hidden;background:rgba(8,6,5,0);transition:background .35s,visibility 0s .35s;color:var(--ivory)}
+#zoom.open{visibility:visible;background:rgba(8,6,5,var(--zbg,.99));transition:background .35s}
+.z-stage{position:absolute;inset:0;overflow:hidden;touch-action:none;cursor:zoom-in;user-select:none;-webkit-user-select:none}
+.z-stage.zoomed{cursor:grab}
+.z-stage.panning{cursor:grabbing}
+#z-img{position:absolute;left:0;top:0;max-width:none;transform-origin:0 0;will-change:transform;-webkit-user-drag:none;
+  box-shadow:0 30px 80px -30px #000;background:var(--wax-2)}
+.z-top{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:calc(14px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 30px max(16px,env(safe-area-inset-left,0px));
+  background:linear-gradient(to bottom,rgba(8,6,5,.8),rgba(8,6,5,0));transition:opacity .3s;pointer-events:none}
+.z-top>*{pointer-events:auto}
+.z-name{display:flex;flex-direction:column;gap:3px;min-width:0}
+#z-title{font-family:var(--display);font-style:italic;font-size:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#z-no{font-size:10px;letter-spacing:.24em;color:var(--dust);font-variant-numeric:tabular-nums}
+.z-tools{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.zb{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:rgba(20,16,13,.6);border:1px solid rgba(239,230,217,.2);
+  transition:background .2s,color .2s,border-color .2s,opacity .2s}
+.zb svg{width:18px;height:18px}
+.zb:disabled{opacity:.35;cursor:default}
+.z-level{min-width:58px;height:44px;padding:0 10px;border-radius:999px;font-size:12px;letter-spacing:.08em;font-variant-numeric:tabular-nums;
+  background:rgba(20,16,13,.6);border:1px solid rgba(239,230,217,.2)}
+@media (hover:hover){.zb:not(:disabled):hover,.z-level:hover{background:var(--ivory);color:var(--ink);border-color:var(--ivory)}}
+.z-side{position:absolute;top:50%;margin-top:-22px}
+#z-prev{left:max(16px,env(safe-area-inset-left,0px))}
+#z-next{right:max(16px,env(safe-area-inset-right,0px))}
+.z-hint{position:absolute;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);margin:0;
+  font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;white-space:nowrap;padding:11px 18px;border-radius:999px;
+  background:rgba(20,16,13,.72);border:1px solid rgba(239,230,217,.12);transition:opacity .5s;pointer-events:none}
+.z-hint.gone{opacity:0}
+.z-hint .touch{display:none}
+@media (hover:none),(pointer:coarse){.z-hint .fine{display:none}.z-hint .touch{display:inline}}
+#zoom.chrome-off .z-top,#zoom.chrome-off .z-side,#zoom.chrome-off .z-hint{opacity:0;pointer-events:none}
+@media (max-width:640px){
+  #z-title{font-size:16px}
+  .z-tools{gap:4px}
+  .zb{width:40px;height:40px}
+  .z-level{min-width:48px;height:40px;font-size:11px}
+  #z-out,#z-in{display:none}
+  .z-side{top:auto;margin-top:0;bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+  .z-hint{bottom:calc(72px + env(safe-area-inset-bottom,0px));font-size:9px;letter-spacing:.16em;padding:9px 14px}
+}
+
 @media (prefers-reduced-motion:reduce){
   .card .inner{animation:none;transition:none}
-  .note,#sheet,#veil,#rail,#close,.about-card,.about-veil{transition:none}
+  .note,#sheet,#veil,#rail,#close,.about-card,.about-veil,#zoom{transition:none}
 }

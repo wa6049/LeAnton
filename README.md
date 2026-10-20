@@ -42,3 +42,9 @@ Add two images for each piece, both JPG named `<code>.jpg`:
 - `assets/img/full/`, about 1200px on the long side
 
 Photos and captions are from the @le__anton Instagram account.
+
+## Photo viewer
+
+Tap the photo on the top note to open it full screen. Scroll, pinch, double-tap or use + / − to zoom, drag to move around. Swipe sideways (or ← →) for the next piece, swipe down or Esc to close.
+
+The viewer loads `assets/img/zoom/<code>.jpg` (the largest size Instagram serves, up to 2400px) and falls back to `assets/img/full/` until it arrives. When adding a piece, put a third, larger copy there.

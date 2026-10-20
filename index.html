@@ -58,6 +58,24 @@
   <button class="rb" id="close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
 </section>
 
+<!-- photo viewer: fullscreen with zoom -->
+<section id="zoom" role="dialog" aria-modal="true" aria-label="Photo viewer" aria-hidden="true">
+  <div class="z-stage" id="z-stage"><img id="z-img" alt="" draggable="false"></div>
+  <div class="z-top">
+    <div class="z-name"><span id="z-title"></span><span id="z-no"></span></div>
+    <div class="z-tools">
+      <button class="zb" id="z-out" aria-label="Zoom out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 12h14"/></svg></button>
+      <button class="z-level" id="z-level" aria-label="Fit to screen">1×</button>
+      <button class="zb" id="z-in" aria-label="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="zb" id="z-fs" aria-label="Full screen" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
+      <button class="zb" id="z-close" aria-label="Close photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+  </div>
+  <button class="zb z-side" id="z-prev" aria-label="Previous piece"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 5l-7 7 7 7"/></svg></button>
+  <button class="zb z-side" id="z-next" aria-label="Next piece"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5l7 7-7 7"/></svg></button>
+  <p class="z-hint" id="z-hint"><span class="fine">Scroll or pinch to zoom · Double-click to zoom in · Drag to move</span><span class="touch">Pinch or double-tap to zoom · Swipe down to close</span></p>
+</section>
+
 <!-- about -->
 <section id="about" role="dialog" aria-modal="true" aria-labelledby="a-title" aria-hidden="true">
   <div class="about-veil" data-close></div>

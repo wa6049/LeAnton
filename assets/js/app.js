@@ -19,6 +19,7 @@ function rng(seed){ return () => { seed = (seed * 1664525 + 1013904223) >>> 0; r
 function hash(str){ let h = 2166136261; for (const c of str) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return (h >>> 0) / 4294967296; }
 const thumb = it => `assets/img/thumb/${it.code}.jpg`;
 const full  = it => `assets/img/full/${it.code}.jpg`;
+const zoomSrc = it => `assets/img/zoom/${it.code}.jpg`;
 
 let ITEMS = [], order = [];
 let filter = "all";
@@ -179,7 +180,9 @@ function setLevel(n, k){
   st.setProperty("--rot", v.rot + "deg"); st.setProperty("--sc", v.sc); st.setProperty("--br", v.br);
   st.zIndex = 20 - k; st.opacity = k >= DEPTH ? 0 : 1;
   n.el.classList.toggle("top", k === 0);
-  n.el.tabIndex = -1;
+  n.el.tabIndex = k === 0 ? 0 : -1;
+  if (k === 0) { n.el.setAttribute("role", "button"); n.el.setAttribute("aria-label", `View ${n.it.title} full screen`); }
+  else { n.el.removeAttribute("role"); n.el.removeAttribute("aria-label"); }
   n.el.setAttribute("aria-hidden", k === 0 ? "false" : "true");
   n.k = k;
 }
@@ -189,9 +192,11 @@ function makeNote(it){
   el.className = "note";
   el.style.setProperty("--w", w + "px"); el.style.setProperty("--h", h + "px");
   el.innerHTML = `<span class="pic"><img src="${thumb(it)}" alt="${esc(it.title)}" draggable="false"></span>
-    <span class="cap"><span>${esc(it.title)}</span><span>Nº ${pad(it.no)}</span></span>`;
+    <span class="cap"><span>${esc(it.title)}</span><span>Nº ${pad(it.no)}</span></span>
+    <span class="zoomhint" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></span>`;
   const n = {it, el, k:0};
   el.addEventListener("pointerdown", e => grab(e, n));
+  el.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && n.k === 0) { e.preventDefault(); openZoom(); } });
   stackEl.appendChild(el);
   return n;
 }
@@ -346,6 +351,7 @@ function drop(e){
     step(1, {x: dx + dx / len * innerWidth * .6, y: dy + dy / len * innerHeight * .4});
   } else {
     n.el.classList.remove("dragging"); setLevel(n, 0);
+    if (!dragMoved && e.type === "pointerup") openZoom();   // a tap on the top note opens the photo
   }
   dragMoved = false;
 }
@@ -360,6 +366,7 @@ $("#prev").onclick = () => step(-1);
 $("#next").onclick = () => step(1);
 
 addEventListener("keydown", e => {
+  if (zoomOpen) { zoomKey(e); return; }
   if (aboutOpen) { if (e.key === "Escape") closeAbout(); else if (e.key === "Tab") trap(e, $("#about")); return; }
   if (!isOpen) return;
   if (e.key === "Escape") close();
@@ -384,7 +391,218 @@ function openFromHash(first){
     setTimeout(() => { openItem(it, c && onScreen(c) ? c.el : null); pushed = false; }, first ? 500 : 0);
   } else if (!it && isOpen) close(true);
 }
-addEventListener("popstate", () => openFromHash(false));
+addEventListener("popstate", () => {
+  if (zoomOpen) { closeZoom(true); return; }
+  // after the viewer closes itself, keep the address on the piece that is showing
+  if (zBack) { zBack = false; if (isOpen) history.replaceState({piece:list[pos].code}, "", "#" + list[pos].code); return; }
+  openFromHash(false);
+});
+
+/* ================= photo viewer ================= */
+const Z = $("#zoom"), zStage = $("#z-stage"), zImg = $("#z-img"), zLevel = $("#z-level"), zHint = $("#z-hint");
+let zoomOpen = false, zPushed = false, zBack = false, zOpenedAt = 0, zReturn = null;
+let zs = 1, zx = 0, zy = 0, fitW = 0, fitH = 0, maxS = 4, zItem = null;
+const ptrs = new Map();
+let pinch = null, pan = null, lastTap = {t:0, x:0, y:0}, swipe = null;
+
+function fitBox(it){
+  const pad = innerWidth <= 640 ? 12 : 72;
+  const top = innerWidth <= 640 ? 70 : 84, bottom = innerWidth <= 640 ? 120 : 72;
+  const aw = innerWidth - pad * 2, ah = innerHeight - top - bottom;
+  const ar = it.h / it.w;
+  let w = aw, h = w * ar; if (h > ah) { h = ah; w = h / ar; }
+  return {w, h, x:(innerWidth - w) / 2, y: top + (ah - h) / 2};
+}
+function applyZ(anim){
+  zImg.style.transition = anim && !reduce ? "transform .32s cubic-bezier(.2,.8,.2,1)" : "none";
+  zImg.style.transform = `translate(${zx}px,${zy}px) scale(${zs})`;
+  zLevel.textContent = (zs < 1.05 ? 1 : Math.round(zs * 10) / 10) + "×";
+  zLevel.setAttribute("aria-label", zs < 1.05 ? "Zoom level, fit to screen" : `Zoom level ${zLevel.textContent}, reset to fit`);
+  zStage.classList.toggle("zoomed", zs > 1.05);
+  $("#z-out").disabled = zs <= 1.01; $("#z-in").disabled = zs >= maxS - .01;
+}
+function clampZ(){
+  const w = fitW * zs, h = fitH * zs, f = fitBox(zItem);
+  zx = w <= innerWidth ? f.x + (fitW - w) / 2 : Math.min(0, Math.max(innerWidth - w, zx));
+  zy = h <= innerHeight ? f.y + (fitH - h) / 2 : Math.min(0, Math.max(innerHeight - h, zy));
+}
+function zoomTo(ns, px, py, anim){
+  ns = Math.min(maxS, Math.max(1, ns));
+  const ix = (px - zx) / zs, iy = (py - zy) / zs;   // image point under the cursor stays put
+  zs = ns; zx = px - ix * zs; zy = py - iy * zs;
+  clampZ(); applyZ(anim);
+}
+function resetZ(anim){ const f = fitBox(zItem); zs = 1; zx = f.x; zy = f.y; applyZ(anim); }
+function layoutZ(){
+  const f = fitBox(zItem);
+  fitW = f.w; fitH = f.h;
+  zImg.style.width = fitW + "px"; zImg.style.height = fitH + "px";
+  // zoom up to 1.5x the photo's real pixels (at least 3x), past that it only gets blurrier
+  const natW = zImg.dataset.nat ? +zImg.dataset.nat : zItem.w;
+  maxS = Math.min(6, Math.max(3, natW * 1.5 / fitW));
+}
+function loadZ(it){
+  zItem = it;
+  $("#z-title").textContent = it.title;
+  $("#z-no").textContent = `Nº ${pad(it.no)} · ${pad(pos + 1)} of ${pad(list.length)}`;
+  zImg.alt = it.title;
+  zImg.dataset.nat = "";
+  zImg.src = full(it);
+  layoutZ(); resetZ(false);
+  const hi = new Image();
+  hi.onload = () => { if (zItem === it) { zImg.src = hi.src; zImg.dataset.nat = hi.naturalWidth; layoutZ(); applyZ(false); } };
+  hi.src = zoomSrc(it);
+  const one = list.length < 2; $("#z-prev").hidden = one; $("#z-next").hidden = one;
+}
+function openZoom(){
+  if (!isOpen || zoomOpen || !pile[0]) return;
+  zoomOpen = true; zOpenedAt = performance.now(); zReturn = document.activeElement;
+  Z.classList.add("open"); Z.setAttribute("aria-hidden", "false"); Z.classList.remove("chrome-off");
+  zHint.classList.remove("gone"); clearTimeout(zHint._t); zHint._t = setTimeout(() => zHint.classList.add("gone"), 3500);
+  loadZ(list[pos]);
+  history.pushState({piece:list[pos].code, zoom:1}, "", "#" + list[pos].code); zPushed = true;
+  // grow out of the photo on the note
+  const pic = pile[0].el.querySelector(".pic").getBoundingClientRect();
+  if (!reduce) zImg.animate([
+    {transform:`translate(${pic.left}px,${pic.top}px) scale(${pic.width / fitW},${pic.height / fitH})`, opacity:.6},
+    {transform:`translate(${zx}px,${zy}px) scale(1)`, opacity:1}], {duration:420, easing:"cubic-bezier(.2,.8,.2,1)"});
+  $("#z-close").focus({preventScroll:true});
+}
+function closeZoom(fromPop){
+  if (!zoomOpen) return; zoomOpen = false;
+  if (zPushed && !fromPop) { zBack = true; history.back(); }
+  zPushed = false;
+  if (fromPop) history.replaceState({piece:list[pos].code}, "", "#" + list[pos].code);
+  Z.classList.remove("open"); Z.setAttribute("aria-hidden", "true"); Z.style.removeProperty("--zbg");
+  ptrs.clear(); pinch = pan = swipe = null;
+  if (pile[0]) pile[0].el.focus({preventScroll:true}); else if (zReturn) zReturn.focus({preventScroll:true});
+}
+function zStep(dir){
+  if (list.length < 2) return;
+  step(dir);                       // the pile behind follows along
+  const from = dir > 0 ? 1 : -1;
+  loadZ(list[pos]);
+  if (!reduce) zImg.animate([{transform:`translate(${zx + from * 60}px,${zy}px) scale(1)`, opacity:0}, {transform:`translate(${zx}px,${zy}px) scale(1)`, opacity:1}],
+    {duration:300, easing:"cubic-bezier(.2,.8,.2,1)"});
+}
+function zoomKey(e){
+  const cx = innerWidth / 2, cy = innerHeight / 2;
+  if (e.key === "Escape") closeZoom();
+  else if (e.key === "+" || e.key === "=") zoomTo(zs * 1.5, cx, cy, true);
+  else if (e.key === "-" || e.key === "_") zoomTo(zs / 1.5, cx, cy, true);
+  else if (e.key === "0") resetZ(true);
+  else if (e.key.startsWith("Arrow")) {
+    e.preventDefault();
+    if (zs > 1.05) {
+      const d = 80, k = e.key;
+      zx += k === "ArrowLeft" ? d : k === "ArrowRight" ? -d : 0;
+      zy += k === "ArrowUp" ? d : k === "ArrowDown" ? -d : 0;
+      clampZ(); applyZ(true);
+    } else zStep(e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : -1);
+  }
+  else if (e.key === "Tab") trap(e, Z);
+}
+// wheel and trackpad pinch
+zStage.addEventListener("wheel", e => {
+  e.preventDefault(); hideZHint();
+  const k = Math.exp(-e.deltaY * (e.ctrlKey ? .01 : .0018));
+  zoomTo(zs * k, e.clientX, e.clientY, false);
+}, {passive:false});
+// pointers: pan, pinch, double-tap, swipe
+zStage.addEventListener("pointerdown", e => {
+  if (performance.now() - zOpenedAt < 300) return;
+  zStage.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if (ptrs.size === 2) {
+    const [a, b] = [...ptrs.values()];
+    pinch = {d:Math.hypot(a.x - b.x, a.y - b.y), s:zs, mx:(a.x + b.x) / 2, my:(a.y + b.y) / 2, zx, zy};
+    pan = swipe = null;
+  } else if (ptrs.size === 1) {
+    if (zs > 1.05) pan = {x:e.clientX, y:e.clientY, zx, zy, moved:false};
+    else swipe = {x:e.clientX, y:e.clientY, dx:0, dy:0, axis:null, t:performance.now()};
+  }
+});
+zStage.addEventListener("pointermove", e => {
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if (pinch && ptrs.size >= 2) {
+    hideZHint();
+    const [a, b] = [...ptrs.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const ns = Math.min(maxS * 1.15, Math.max(.85, pinch.s * d / pinch.d));
+    const ix = (pinch.mx - pinch.zx) / pinch.s, iy = (pinch.my - pinch.zy) / pinch.s;
+    zs = ns; zx = mx - ix * zs; zy = my - iy * zs; applyZ(false);
+  } else if (pan) {
+    const dx = e.clientX - pan.x, dy = e.clientY - pan.y;
+    if (Math.hypot(dx, dy) > 4) { pan.moved = true; zStage.classList.add("panning"); hideZHint(); }
+    zx = pan.zx + dx; zy = pan.zy + dy; clampZ(); applyZ(false);
+  } else if (swipe) {
+    swipe.dx = e.clientX - swipe.x; swipe.dy = e.clientY - swipe.y;
+    if (!swipe.axis && Math.hypot(swipe.dx, swipe.dy) > 10) swipe.axis = Math.abs(swipe.dy) > Math.abs(swipe.dx) ? "y" : "x";
+    if (swipe.axis === "y") {   // drag down to close
+      const dy = Math.max(0, swipe.dy);
+      zImg.style.transition = "none";
+      zImg.style.transform = `translate(${zx}px,${zy + dy}px) scale(${1 - Math.min(.2, dy / 2000)})`;
+      Z.style.setProperty("--zbg", Math.max(.3, .99 - dy / 500));
+    } else if (swipe.axis === "x") {
+      zImg.style.transition = "none";
+      zImg.style.transform = `translate(${zx + swipe.dx}px,${zy}px) scale(1)`;
+    }
+  }
+});
+function zUp(e){
+  if (!ptrs.has(e.pointerId)) return;
+  ptrs.delete(e.pointerId);
+  zStage.classList.remove("panning");
+  if (pinch) {
+    if (ptrs.size < 2) {
+      pinch = null;
+      if (zs < 1) resetZ(true); else { zs = Math.min(zs, maxS); clampZ(); applyZ(true); }
+      if (ptrs.size === 1 && zs > 1.05) { const p = [...ptrs.values()][0]; pan = {x:p.x, y:p.y, zx, zy, moved:true}; }
+    }
+    return;
+  }
+  const wasTap = (pan && !pan.moved) || (swipe && !swipe.axis);
+  if (swipe && swipe.axis === "y") {
+    Z.style.removeProperty("--zbg");
+    if (swipe.dy > 110 || swipe.dy / (performance.now() - swipe.t) > .6) { closeZoom(); swipe = null; return; }
+    applyZ(true);
+  } else if (swipe && swipe.axis === "x") {
+    if (Math.abs(swipe.dx) > 80 && list.length > 1) zStep(swipe.dx < 0 ? 1 : -1); else applyZ(true);
+  }
+  pan = swipe = null;
+  if (wasTap && e.type === "pointerup") {
+    const now = performance.now();
+    if (now - lastTap.t < 320 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 40) {
+      // double-tap / double-click: zoom in on that spot, or back to fit
+      if (zs > 1.05) resetZ(true); else zoomTo(Math.min(2.5, maxS), e.clientX, e.clientY, true);
+      lastTap.t = 0; hideZHint();
+    } else {
+      lastTap = {t:now, x:e.clientX, y:e.clientY};
+    }
+  }
+}
+zStage.addEventListener("pointerup", zUp); zStage.addEventListener("pointercancel", zUp);
+function hideZHint(){ zHint.classList.add("gone"); }
+// the browser's leftover click from the tap that opened the viewer
+Z.addEventListener("click", e => { if (performance.now() - zOpenedAt < 450) { e.preventDefault(); e.stopPropagation(); } }, true);
+$("#z-close").onclick = () => closeZoom();
+$("#z-in").onclick = () => zoomTo(zs * 1.6, innerWidth / 2, innerHeight / 2, true);
+$("#z-out").onclick = () => zoomTo(zs / 1.6, innerWidth / 2, innerHeight / 2, true);
+zLevel.onclick = () => resetZ(true);
+$("#z-prev").onclick = () => zStep(-1);
+$("#z-next").onclick = () => zStep(1);
+const zfs = $("#z-fs");
+if (document.fullscreenEnabled) {
+  zfs.hidden = false;
+  zfs.onclick = () => { (document.fullscreenElement ? document.exitFullscreen() : Z.requestFullscreen()).catch(() => {}); };
+  document.addEventListener("fullscreenchange", () => {
+    zfs.setAttribute("aria-label", document.fullscreenElement ? "Exit full screen" : "Full screen");
+    if (zoomOpen) setTimeout(() => { layoutZ(); resetZ(false); }, 60);
+  });
+}
+const _closeZoom = closeZoom;
+closeZoom = function(fromPop){ if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); _closeZoom(fromPop); };
 
 /* ================= about ================= */
 const A = $("#about"); let aboutOpen = false, aboutReturn = null;
@@ -397,6 +615,6 @@ A.querySelectorAll("[data-close]").forEach(b => b.onclick = closeAbout);
 let rt;
 addEventListener("resize", () => {
   clearTimeout(rt);
-  rt = setTimeout(() => { build(); if (isOpen) { buildPile(); } }, 200);
+  rt = setTimeout(() => { build(); if (isOpen) { buildPile(); } if (zoomOpen) { layoutZ(); resetZ(false); } }, 200);
 });
 })();
