@@ -48,3 +48,5 @@ Photos and captions are from the @le__anton Instagram account.
 Tap the photo on the top note to open it full screen. Scroll, pinch, double-tap or use + / − to zoom, drag to move around. Swipe sideways (or ← →) for the next piece, swipe down or Esc to close.
 
 The viewer loads `assets/img/zoom/<code>.jpg` (the largest size Instagram serves, up to 2400px) and falls back to `assets/img/full/` until it arrives. When adding a piece, put a third, larger copy there.
+
+When you change `style.css`, `app.js` or `pieces.json`, bump the `?v=` number in `index.html` (and on the `pieces.json` fetch in `app.js`) so returning visitors get the new files.

@@ -25,7 +25,7 @@ let ITEMS = [], order = [];
 let filter = "all";
 try { const f = localStorage.getItem("la-filter"); if (CATS.some(c => c[0] === f)) filter = f; } catch (_) {}
 
-fetch("assets/data/pieces.json").then(r => r.json()).then(data => {
+fetch("assets/data/pieces.json?v=3").then(r => r.json()).then(data => {
   ITEMS = data.sort((a, b) => b.date.localeCompare(a.date));
   ITEMS.forEach((it, i) => it.no = i + 1);           // Nº 01 is the newest piece
   const r = rng(20261020);
