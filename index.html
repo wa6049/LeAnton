@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Lè Anton Home · Handmade Home Decor</title>
+<meta name="description" content="Handcrafted soy dessert candles, jesmonite trinkets, crochet and macrame by Faith Lè Anton. Drag through the collection and order on WhatsApp.">
+<meta name="theme-color" content="#14100d">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Lè Anton Home">
+<meta property="og:description" content="Handcrafted soy candles, jesmonite, crochet and macrame. Dessert in a jar without the calories.">
+<meta property="og:image" content="assets/og.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;1,6..96,400;1,6..96,500&family=Jost:wght@400;500&display=swap">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div id="stage" role="region" aria-label="Gallery. Drag to explore, select a piece to open it."></div>
+<div id="glow" aria-hidden="true"></div>
+<div id="shade" aria-hidden="true"></div>
+
+<header class="chrome" id="brand">
+  <button class="wordmark" id="about-open" aria-haspopup="dialog" aria-label="About Lè Anton Home">
+    <span class="w">L<em>È</em> ANTON</span>
+    <span class="s">Home Decor · Handmade</span>
+  </button>
+</header>
+<nav id="filters" class="chrome" aria-label="Filter the collection"></nav>
+<div id="hint" class="chrome" aria-hidden="true"><i></i>Drag to explore · Tap to open</div>
+<div id="links" class="chrome">
+  <a class="ig" href="https://www.instagram.com/le__anton/" target="_blank" rel="noopener">Instagram</a>
+  <a href="https://wa.me/message/CX3ERKSW5VMAN1" target="_blank" rel="noopener">Order on WhatsApp</a>
+</div>
+<div id="tally" class="chrome" aria-live="polite"></div>
+
+<!-- piece detail: a pile of notes -->
+<section id="detail" role="dialog" aria-modal="true" aria-labelledby="d-title" aria-hidden="true">
+  <div id="veil"></div>
+  <div id="shot"><div id="stack" aria-label="Pieces, stacked. Swipe or use the arrows to go through them."></div></div>
+  <div id="sheet">
+    <div class="count" id="d-count"></div>
+    <div class="meta" id="d-meta"></div>
+    <h2 id="d-title"></h2>
+    <p id="d-desc"></p>
+    <dl class="notes" id="d-notes"></dl>
+    <div class="acts">
+      <a class="btn primary" href="https://wa.me/message/CX3ERKSW5VMAN1" target="_blank" rel="noopener">Order on WhatsApp</a>
+      <a class="btn" id="d-ig" target="_blank" rel="noopener">View on Instagram</a>
+    </div>
+  </div>
+  <div id="rail">
+    <button class="rb" id="prev" aria-label="Previous piece"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+    <button class="rb" id="next" aria-label="Next piece"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg></button>
+  </div>
+  <button class="rb" id="close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</section>
+
+<!-- about -->
+<section id="about" role="dialog" aria-modal="true" aria-labelledby="a-title" aria-hidden="true">
+  <div class="about-veil" data-close></div>
+  <div class="about-card">
+    <button class="rb about-x" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <p class="eyebrow">Faith Lè Anton · Home Decor</p>
+    <h2 id="a-title">Dessert in a jar, without the calories.</h2>
+    <p>Lè Anton Home makes handcrafted soy candles that look like the desserts they smell of: mousses, milkshakes, cheesecakes, frappes and tarts. Cruelty-free, with long-lasting scents.</p>
+    <p>Alongside the candles there are jesmonite trinket sets, trays and coasters, crochet table mats and pillow cases, macrame wall hangings, car diffusers and original art. Most pieces are made to order.</p>
+    <dl class="facts">
+      <div><dt>Candles</dt><dd>Soy wax</dd></div>
+      <div><dt>Orders</dt><dd>WhatsApp or Instagram DM</dd></div>
+      <div><dt>Custom</dt><dd>Colours and sets on request</dd></div>
+    </dl>
+    <div class="acts">
+      <a class="btn primary" href="https://wa.me/message/CX3ERKSW5VMAN1" target="_blank" rel="noopener">Order on WhatsApp</a>
+      <a class="btn" href="https://www.instagram.com/le__anton/" target="_blank" rel="noopener">@le__anton</a>
+    </div>
+  </div>
+</section>
+
+<noscript><p class="noscript">This gallery needs JavaScript. See the full collection on <a href="https://www.instagram.com/le__anton/">Instagram</a>.</p></noscript>
+<script src="assets/js/app.js" defer></script>
+</body>
+</html>
