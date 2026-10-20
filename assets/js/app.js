@@ -58,8 +58,9 @@ function build(){
       ${it.kind === "reel" ? '<span class="reel" aria-hidden="true"></span>' : ""}
       <span class="lbl"><span class="nm">${esc(it.title)}</span><span class="no">Nº ${pad(it.no)}</span></span></button>`;
     const btn = el.firstElementChild;
-    btn.addEventListener("click", e => { if (moved) { e.preventDefault(); return; } openItem(it, el); });
-    btn.addEventListener("focus", () => bringIntoView(el));
+    // pointer taps are handled in release(); this catches Enter/Space from the keyboard
+    btn.addEventListener("click", e => { e.preventDefault(); if (e.detail === 0) openItem(it, el); });
+    btn.addEventListener("focus", () => { if (btn.matches(":focus-visible")) bringIntoView(el); });
     stage.appendChild(el);
     cards.push({el, it, x:0, y:0,
       bx: c * cellW + (cellW - cw) / 2 + (r() - .5) * cellW * .22 + (row % 2 ? cellW * .5 : 0),
@@ -83,8 +84,13 @@ function bringIntoView(el){
   }
 }
 
-let down = false, moved = false, lx = 0, ly = 0, lt = 0, raf = 0;
-stage.addEventListener("pointerdown", e => { down = true; moved = false; lx = e.clientX; ly = e.clientY; lt = performance.now(); vx = vy = 0; cancelAnimationFrame(raf); });
+let down = false, moved = false, lx = 0, ly = 0, lt = 0, raf = 0, downCard = null, gliding = false;
+stage.addEventListener("pointerdown", e => {
+  if (e.button > 0) return;
+  // a tap that stops a moving table should only stop it, not open a card
+  downCard = gliding ? null : e.target.closest(".card");
+  down = true; moved = false; lx = e.clientX; ly = e.clientY; lt = performance.now(); vx = vy = 0; cancelAnimationFrame(raf); gliding = false;
+});
 addEventListener("pointermove", e => {
   document.documentElement.style.setProperty("--gx", e.clientX + "px");
   document.documentElement.style.setProperty("--gy", e.clientY + "px");
@@ -95,13 +101,20 @@ addEventListener("pointermove", e => {
   const now = performance.now(), dt = Math.max(1, now - lt);
   ox += dx; oy += dy; vx = dx / dt * 16; vy = dy / dt * 16; lx = e.clientX; ly = e.clientY; lt = now; place();
 });
-function release(){
+function release(e){
   if (!down) return; down = false; stage.classList.remove("grabbing");
-  if (moved && !reduce) glide();
-  setTimeout(() => moved = false, 0);
+  if (moved) { if (!reduce) { gliding = true; glide(); } }
+  else if (downCard && e.type === "pointerup") {
+    const c = cards.find(c => c.el === downCard);
+    if (c) openItem(c.it, c.el);
+  }
+  downCard = null;
 }
 addEventListener("pointerup", release); addEventListener("pointercancel", release);
-function glide(){ vx *= .94; vy *= .94; ox += vx; oy += vy; place(); if (Math.hypot(vx, vy) > .2) raf = requestAnimationFrame(glide); }
+function glide(){
+  vx *= .94; vy *= .94; ox += vx; oy += vy; place();
+  if (Math.hypot(vx, vy) > .2) raf = requestAnimationFrame(glide); else gliding = false;
+}
 stage.addEventListener("wheel", e => { e.preventDefault(); ox -= e.deltaX; oy -= e.deltaY; place(); hideHint(); }, {passive:false});
 function hideHint(){ $("#hint").classList.add("gone"); }
 
@@ -156,7 +169,8 @@ function levelVars(it, k){
   const s = hash(it.code), side = s < .5 ? -1 : 1;
   if (k === 0) return {tx:0, ty:0, rot:(s - .5) * 2.4, sc:1, br:1};
   const alt = k % 2 ? side : -side; // notes fan out to alternating sides
-  return {tx: alt * (10 + k * 14 + s * 10), ty: -k * 10, rot: alt * (3 + k * 2.6 + s * 2), sc: 1 - k * .04, br: 1 - k * .14};
+  const spread = Math.min(1.5, Math.max(.45, box.sw / 520));
+  return {tx: alt * (16 + k * 20 + s * 10) * spread, ty: -k * 16 * spread, rot: alt * (3.5 + k * 3 + s * 2), sc: 1 - k * .035, br: 1 - k * .14};
 }
 function setLevel(n, k){
   const v = levelVars(n.it, k);
@@ -178,7 +192,6 @@ function makeNote(it){
     <span class="cap"><span>${esc(it.title)}</span><span>Nº ${pad(it.no)}</span></span>`;
   const n = {it, el, k:0};
   el.addEventListener("pointerdown", e => grab(e, n));
-  el.addEventListener("click", () => { if (n.k > 0 && !dragMoved) jump(n.k); });
   stackEl.appendChild(el);
   return n;
 }
@@ -217,7 +230,7 @@ function swapSheet(it){
 function openItem(it, cardEl){
   list = visible(); if (!list.includes(it)) { filter = "all"; applyFilter(); list = visible(); }
   pos = list.indexOf(it);
-  isOpen = true; hideHint();
+  isOpen = true; hideHint(); openedAt = performance.now();
   D.classList.add("open"); D.setAttribute("aria-hidden", "false");
   fill(it); buildPile();
   if (location.hash.slice(1) !== it.code) { history.pushState({piece:it.code}, "", "#" + it.code); pushed = true; }
@@ -242,7 +255,8 @@ function openItem(it, cardEl){
 
 function close(fromPop){
   if (!isOpen) return; isOpen = false;
-  if (pushed && !fromPop) { pushed = false; history.back(); }
+  if (pushed && !fromPop) history.back();
+  else if (!fromPop && location.hash) history.replaceState(null, "", location.pathname + location.search);
   pushed = false;
   const it = list[pos];
   if (lifted) { lifted.classList.remove("lifted"); lifted = null; }
@@ -305,14 +319,15 @@ function jump(k){ for (let i = 0; i < k; i++) setTimeout(() => step(1), i * 130)
 let drag = null, dragMoved = false;
 function grab(e, n){
   dragMoved = false;
-  if (n.k !== 0) return;
   e.preventDefault();
+  if (n.k !== 0) { drag = {n, x:e.clientX, y:e.clientY, dx:0, dy:0, under:true}; return; }
   drag = {n, x:e.clientX, y:e.clientY, dx:0, dy:0, t:performance.now(), vx:0, vy:0, base:levelVars(n.it, 0)};
   n.el.classList.add("dragging");
   try { n.el.setPointerCapture(e.pointerId); } catch (_) {}
 }
 addEventListener("pointermove", e => {
   if (!drag) return;
+  if (drag.under) { if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 6) dragMoved = true; return; }
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   if (Math.hypot(dx, dy) > 4) dragMoved = true;
   const now = performance.now(), dt = Math.max(1, now - drag.t);
@@ -321,8 +336,9 @@ addEventListener("pointermove", e => {
   st.setProperty("--tx", dx + "px"); st.setProperty("--ty", dy + "px");
   st.setProperty("--rot", (drag.base.rot + dx * .06) + "deg");
 });
-function drop(){
+function drop(e){
   if (!drag) return;
+  if (drag.under) { const n = drag.n; drag = null; if (!dragMoved && e.type === "pointerup" && n.k > 0) jump(n.k); return; }
   const {n, dx, dy, vx, vy} = drag; drag = null;
   const far = Math.hypot(dx, dy) > Math.min(140, box.sw * .35) || Math.hypot(vx, vy) > .9;
   if (far && list.length > 1) {
@@ -331,10 +347,13 @@ function drop(){
   } else {
     n.el.classList.remove("dragging"); setLevel(n, 0);
   }
-  setTimeout(() => dragMoved = false, 0);
+  dragMoved = false;
 }
 addEventListener("pointerup", drop); addEventListener("pointercancel", drop);
 
+// swallow the browser's own click that follows the tap which opened the view
+let openedAt = 0;
+D.addEventListener("click", e => { if (performance.now() - openedAt < 450) { e.preventDefault(); e.stopPropagation(); } }, true);
 $("#close").onclick = () => close();
 $("#veil").onclick = () => close();
 $("#prev").onclick = () => step(-1);
